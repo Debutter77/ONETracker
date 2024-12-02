@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "harmonyrewards",
+    "stakingmonitor": "harmonyrewards"
+  },
+  "targets": {},
+  "etags": {},
+  "dataconnectEmulatorConfig": {}
+}
