@@ -1,6 +1,6 @@
 # **ONETracker - Your Harmony Blockchain Companion**
 
-![ONETracker Logo](assets/1024.png) <!-- Optional: Add a logo or banner -->
+![ONETracker Logo](assets/images/1024.png) <!-- Optional: Add a logo or banner -->
 
 ## **Overview**
 **ONETracker** is a cutting-edge mobile application designed to simplify and enhance the staking experience on the Harmony blockchain. Whether you're a seasoned staker or a newcomer, ONETracker helps you monitor delegations, track rewards, manage wallets, and stay informed with smart notifications.
