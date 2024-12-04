@@ -38,6 +38,11 @@
   View all delegations with validator names, status, staked amounts, and rewards.
 - **Real-Time Notifications**
   Enable notifications for validator election changes and rewards milestones.
+  
+---
 
-
+## **Screenshots** 
+[Screenshot 1](assets/images/1733079968611.jpg)
+[Screenshot 2](assets/images/1733079968629.jpg)
+[Screenshot 3](assets/images/1733079968597.jpg)
 
