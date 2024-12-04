@@ -21,7 +21,7 @@ const SCOPES = [MESSAGING_SCOPE];
 
 // Get OAuth2 access token to authorize Firebase Messaging requests
 async function getAccessToken() {
-  const key = require('./serviceAccountKey.json');
+  const key = require('./serviceAccountKey.json'); // Replace with the correct path to your service account key file
   const jwtClient = new google.auth.JWT(
     key.client_email,
     null,
@@ -451,7 +451,7 @@ function shortAddress(address) {
 exports.checkRewardsAndNotify = functions
   .region('europe-west1')
   .runWith(runtimeOpts)
-  .pubsub.schedule('every 2 minutes')
+  .pubsub.schedule('every 60 minutes')
   .onRun(async (context) => {
     try {
       const usersSnapshot = await admin.database().ref('users').once('value');
@@ -473,7 +473,7 @@ exports.checkRewardsAndNotify = functions
               console.log(`Notification sent successfully to ${uid} for ${address}:`, response);
 
               // Update the flag in the database to mark that the notification was sent
-              await admin.database().ref(`users/${uid}/${address}`).update({ notificationSent: true });
+              await admin.database().ref(`users/${uid}/${address}`).update({ notificationSent: true, rewardsTrigger: null });
             } catch (notificationError) {
               console.error(`Error sending notification to ${uid} for ${address}:`, notificationError);
             }
@@ -492,7 +492,7 @@ exports.checkRewardsAndNotify = functions
 exports.checkValidatorElectionAndNotify = functions
   .region('europe-west1')
   .runWith(runtimeOpts)
-  .pubsub.schedule('every 2 minutes')
+  .pubsub.schedule('every 60 minutes')
   .onRun(async (context) => {
     try {
       const usersSnapshot = await admin.database().ref('users').once('value');
@@ -522,17 +522,27 @@ exports.checkValidatorElectionAndNotify = functions
             const validatorName = validatorInfo.validator.name || validatorInfo.validator['name'] || 'Unknown Validator';
 
             if (!isElected) {
-              const payloadTitle = 'Validator Not Elected!';
-              const payloadBody = `The validator ${validatorName} you are delegating to is no longer elected.`;
+              const now = Date.now();
+              const lastNotified = user.lastValidatorNotification || 0;
+              const oneDayInMs = 24 * 60 * 60 * 1000;
 
-              try {
-                const response = await sendNotification(fcmToken, payloadTitle, payloadBody);
-                console.log(`Notification sent successfully to ${uid} for ${address}:`, response);
+              if (now - lastNotified > oneDayInMs) {
+                const payloadTitle = 'Validator Not Elected!';
+                const payloadBody = `The validator ${validatorName} you are delegating to is no longer elected.`;
 
-                // Update the flag in the database to avoid multiple notifications
-                await admin.database().ref(`users/${uid}/${address}`).update({ notificationSentForValidator: true });
-              } catch (notificationError) {
-                console.error(`Error sending notification to ${uid} for ${address}:`, notificationError);
+                try {
+                  const response = await sendNotification(fcmToken, payloadTitle, payloadBody);
+                  console.log(`Notification sent successfully to ${uid} for ${address}:`, response);
+
+                  // Update the timestamp for the last notification
+                  await admin.database().ref(`users/${uid}/${address}`).update({
+                    lastValidatorNotification: now,
+                  });
+                } catch (notificationError) {
+                  console.error(`Error sending notification to ${uid} for ${address}:`, notificationError);
+                }
+              } else {
+                console.log(`Notification for ${validatorName} already sent within the last 24 hours.`);
               }
             }
           }
@@ -542,4 +552,5 @@ exports.checkValidatorElectionAndNotify = functions
       console.error('Error checking validators and sending notification:', error);
     }
   });
+
 
