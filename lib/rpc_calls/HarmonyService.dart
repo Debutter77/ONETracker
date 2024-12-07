@@ -134,14 +134,15 @@ class HarmonyService {
     return myDelegator;
   }
 
-  Future<void> getValidators() async {
+  
+  Future<void> getDelegatorInfo() async {
     try {
-      // Construct JSON-RPC request to get list of validators
+      // Construct JSON-RPC request to get delegations by delegator
       Map<String, dynamic> requestBody = {
         'jsonrpc': '2.0',
         'id': 1,
-        'method': 'hmyv2_getAllValidatorAddresses',
-        'params': [],
+        'method': 'hmyv2_getDelegationsByDelegator',
+        'params': [address], // Replace with your delegator's address
       };
 
       // Send HTTP POST request
@@ -160,82 +161,50 @@ class HarmonyService {
         throw Exception('Error occurred: ${jsonResponse['error']}');
       }
 
-      List<String> validatorAddresses =
-      (jsonResponse['result'] as List<dynamic>)
-          .map((e) => e.toString().trim())
-          .toList();
+      // Extract delegations from the response
+      List<dynamic> delegations = jsonResponse['result'];
 
-      // Fetch staking info in parallel
-      await Future.wait(validatorAddresses.map((validatorAddress) async {
-        try {
-          Map<String, dynamic> stakingInfo = await getStakingInfo(validatorAddress);
+      // Initialize totals
+      List<Map<String, dynamic>> delegatorInfo = [];
 
-          // Check delegations for this validator
-          for (var validatorInfo in stakingInfo['validator']['delegations']) {
-            String delegatorAddress = validatorInfo['delegator-address'];
+      // Process each delegation
+      for (var delegation in delegations) {
+        String validatorAddress = delegation['validator_address'];
+        double stakedAmount = double.parse(delegation['amount'].toString()) / 1e18; // Convert AttoONE to ONE
+        double _rewards = double.parse(delegation['reward'].toString()) / 1e18; // Convert AttoONE to ONE
+        bool hasUndelegations = delegation['Undelegations'] != null && delegation['Undelegations'].isNotEmpty;
 
-            // Check if the delegator is the user address
-            if ((delegatorAddress == address && validatorInfo['amount']>100) || (delegatorAddress == address && validatorInfo['undelegations'].isNotEmpty)) {
-              // Add this validator to the delegators list
-              myDelegator.add(validatorAddress);
-              // Accumulate staked amount and rewards
-              totalStaked += double.parse(validatorInfo['amount'].toString());
-              rewards += double.parse(validatorInfo['reward'].toString());
 
-              if (validatorInfo['undelegations'].isNotEmpty) {
-                undelegation = true;
-                for (var undelegation in validatorInfo['undelegations']) {
-                  undelegationAmount = double.parse(undelegation['amount'].toString());
-                  undelegation_epoch = int.parse(undelegation['epoch'].toString());
-                }
-              }
-            }
-          }
-        } catch (e) {
-          print('Error fetching staking info for $validatorAddress: $e');
+        if (stakedAmount > 100){
+          myDelegator.add(validatorAddress);
         }
-      }));
+        // Accumulate totals
+        totalStaked += stakedAmount;
+        rewards += _rewards;
 
-      // Convert the total staked amount and rewards from Atto to ONE
-      undelegationAmount = undelegationAmount / 1e18;
-      totalStaked = totalStaked / 1e18;
-      rewards = rewards / 1e18;
+        // Check undelegations
+        double undelegationAmount = 0.0;
+        if (hasUndelegations) {
+          for (var undelegation in delegation['Undelegations']) {
+            undelegationAmount += double.parse(undelegation['amount'].toString()) / 1e18;
+          }
+        }
 
-      // Optionally print the results
-      print('Total amount staked by $address: $totalStaked \$ONE');
-      print('Total amount of rewards: $rewards \$ONE');
+        // Add delegation details to the list
+        delegatorInfo.add({
+          'validatorAddress': validatorAddress,
+          'stakedAmount': stakedAmount,
+          'rewards': rewards,
+          'undelegationAmount': undelegationAmount,
+        });
+      }
+
+      print('Total Staked: $totalStaked ONE');
+      print('Total Rewards: $rewards ONE');
+      print('Delegator Info: $delegatorInfo');
     } catch (e) {
-      print('Error: $e');
+      print('Error fetching delegator info: $e');
     }
-  }
-
-
-
-  Future<Map<String, dynamic>> getStakingInfo(String validatorAddress) async {
-    // Construct JSON-RPC request to get staking info
-    Map<String, dynamic> requestBody = {
-      'jsonrpc': '2.0',
-      'id': 1,
-      'method': 'hmyv2_getValidatorInformation',
-      'params': [validatorAddress],
-    };
-
-    // Send HTTP POST request
-    Uri url = Uri.parse(_rpcUrl);
-    http.Response response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(requestBody),
-    );
-
-    // Parse JSON response
-    Map<String, dynamic> jsonResponse = jsonDecode(response.body);
-
-    // Check if response has error
-    if (jsonResponse.containsKey('error')) {
-      throw Exception('Error occurred: ${jsonResponse['error']}');
-    }
-
-    return jsonResponse['result'];
   }
 }
+
