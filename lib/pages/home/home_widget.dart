@@ -281,8 +281,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load delegations')));
     }
   }
-  Future<void> _getEpochsUntilUndelegation() async{
-    HarmonyService harmonyService = HarmonyService('https://rpc.s0.t.hmny.io');
+  Future<void> _getEpochsUntilUndelegation(HarmonyService harmonyService) async{
     await harmonyService.getEpoch();
     setState(() {
       if(undelegation){
@@ -293,20 +292,20 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
     });
   }
 
-  void _getAccountInfo() async {
-    loading = true;
+  Future <void> _getAccountInfo() async {
     HarmonyService harmonyService =
         HarmonyService('https://rpc.s0.t.hmny.io'); // Harmony One RPC URL
     harmonyService.setAddress(address_label);
     try {
       await harmonyService.getBalance();
-      await harmonyService.getValidators();
+      await harmonyService.getDelegatorInfo();
+      //await harmonyService.getValidators();
       await harmonyService.getTotaSumOfTokens();
       await harmonyService.getPriceOfOneToken();
       await harmonyService.getTotalUSD();
       undelegation = harmonyService.undelegation;
       undelegationepoch  = harmonyService.undelegation_epoch;
-      _getEpochsUntilUndelegation();
+      _getEpochsUntilUndelegation(harmonyService);
       if (!newAddress) loadAlertIcon();
       setState(() {
         timestamp = "Refreshed: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.timestamp())}";
@@ -716,7 +715,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
     String? loadAddress = prefs.getString('address');
     if (loadAddress != null) {
       setState(() {
-        //loading = true;
+        loading = true;
         address_label = loadAddress;
         _getAccountInfo();
       });
@@ -933,7 +932,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                 setState(() {
                                   newAddress = true;
                                   alertOpacity = 0.0;
-                                  //loading = true;
+                                  loading = true;
                                   _deleteRewardsTrigger();
                                   _getAccountInfo();
                                 });
@@ -1000,7 +999,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
       rewardsNotificationsEnabled = !results[1]!; // Rewards setting
       double? rewardsThresholdValue = await getRewardsThreshold(username, address_label);
       // Todo anschauen, wieso immer noch die gleiche Zahl drin steht...
-      rewardsController.text = (rewardsThresholdValue != null && rewardsNotificationsEnabled==true) ? rewardsThresholdValue.toString() : "";
+      rewardsController.text = (rewardsThresholdValue != null) ? rewardsThresholdValue.toString() : "";
     }
 
     showDialog(
@@ -1344,7 +1343,6 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                 _saveRewardsTrigger(rewardThreshold!);
                                 setState(() {
                                   alertOpacity = 1.0;
-                                  _getAccountInfo();
                                 });
                                 toastification.show(
                                   context: context,
@@ -1375,7 +1373,6 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                 _saveRewardsTrigger(rewardThreshold!);
                                 setState(() {
                                   alertOpacity = 1.0;
-                                  _getAccountInfo();
                                 });
                                 toastification.show(
                                   context: context,
@@ -1416,7 +1413,6 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                 setRewardsNotification = true;
                                 setState(() {
                                   alertOpacity = 0.0;
-                                  _getAccountInfo();
                                 });
                                 saveUserFCMTokenRewardstriggerValidatorAlertToDatabase(
                                     address_label, rewardThreshold!);
@@ -1640,7 +1636,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                           setState(() {
                                             newAddress = true;
                                             alertOpacity = 0.0;
-                                            //loading = true;
+                                            loading = true;
                                             _getAccountInfo();
                                           });
                                           Navigator.of(context)
@@ -1791,7 +1787,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                         setState(() {
                                           newAddress = true;
                                           alertOpacity = 0.0;
-                                          //loading = true;
+                                          loading = true;
                                           _getAccountInfo();
                                         });
                                         Navigator.of(context)
@@ -2143,7 +2139,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
 
 
     //subscription  = Connectivity().onConnectivityChanged.listen(_checkInternetConnection as void Function(List<ConnectivityResult> event)?);
-    _getEpochsUntilUndelegation();
+    //_getEpochsUntilUndelegation();
     // Listen for foreground messages
     // Initialize Firebase Messaging and handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -2160,7 +2156,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
         //loading = true;
       });
       // saveUserFCMTokenRewardstriggerValidatorAlertToDatabase(address_label, rewardThreshold!);
-      _getAccountInfo();
+      //_getAccountInfo();
       // Toggle the flag when a message is received
     });
 
@@ -2177,6 +2173,21 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
 
     // Shake Animation
     animationsMap.addAll({
+
+      'textOnActionTriggerAnimation': AnimationInfo(
+        trigger: AnimationTrigger.onActionTrigger,
+        applyInitialState: true,
+        effectsBuilder: () => [
+          ShimmerEffect(
+            curve: Curves.easeInOut,
+            delay: 0.0.ms,
+            duration: 1500.0.ms,
+            color: FlutterFlowTheme.of(context).secondary,
+            angle: 0.524,
+          ),
+        ],
+      ),
+
       'textOnPageLoadAnimation': AnimationInfo(
         loop: true,
         reverse: true,
@@ -2281,9 +2292,20 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
 
   void _startPeriodicTask() {
     if (_timer == null) {
-      _timer = Timer.periodic(Duration(seconds: 30), (timer)async {
+      _timer = Timer.periodic(const Duration(seconds: 20), (timer)async {
         if(myDelegatorList.isNotEmpty) {
-          _getAccountInfo();
+          await _getAccountInfo();
+          if (mounted) {
+            setState(() {
+              // Trigger the onActionTrigger animation
+              animationsMap['textOnActionTriggerAnimation']?.controller
+                  .reset(); // Reset the animation
+              animationsMap['textOnActionTriggerAnimation']?.controller
+                  .forward(); // Start the animation
+            });
+          }
+          // This will trigger the animation mapped to `onActionTrigger`.
+          //animationsMap['textOnActionTriggerAnimation']?.controller.forward(from: 0.0);
         }
       });
       print("Periodic task started.");
@@ -2588,7 +2610,7 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                       if (!address_label
                           .contains("-> Insert your Wallet Address <-")) {
                         setState(() {
-                          //loading = true;
+                          loading = true;
                           _getAccountInfo();
                         });
                       } else {
@@ -2875,8 +2897,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                         padding: EdgeInsetsDirectional.fromSTEB(10.0, 0.0, 0.0, 0.0),
                         child: AutoSizeText(
                           epochsToUndelegat == 0
-                              ? 'Pending undelegations of $undelegationAmount \$ONE: end of current epoch'
-                              : 'Pending undelegations of $undelegationAmount \$ONE in $epochsToUndelegat Epochs',
+                              ? 'Pending undelegations of ${undelegationAmount?.toStringAsFixed(2)}  \$ONE: end of current epoch'
+                              : 'Pending undelegations of ${undelegationAmount?.toStringAsFixed(2)} \$ONE in $epochsToUndelegat Epochs',
                           style: FlutterFlowTheme.of(context).bodyMedium.override(
                             fontFamily: 'Roboto',
                             color: Colors.white,
@@ -3015,6 +3037,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                                                     FontWeight
                                                                         .w600,
                                                               ),
+                                                        ).animateOnActionTrigger(
+                                                          animationsMap['textOnActionTriggerAnimation']!,
                                                         ),
                                                       ),
                                                       Text(
@@ -3127,6 +3151,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                                                     FontWeight
                                                                         .w600,
                                                               ),
+                                                        ).animateOnActionTrigger(
+                                                          animationsMap['textOnActionTriggerAnimation']!,
                                                         ),
                                                       ),
                                                       Text(
@@ -3281,6 +3307,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                                                         FontWeight
                                                                             .w600,
                                                                   ),
+                                                            ).animateOnActionTrigger(
+                                                              animationsMap['textOnActionTriggerAnimation']!,
                                                             ),
                                                           ),
                                                           Text(
@@ -3394,6 +3422,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                                                     FontWeight
                                                                         .w600,
                                                               ),
+                                                        ).animateOnActionTrigger(
+                                                          animationsMap['textOnActionTriggerAnimation']!,
                                                         ),
                                                       ),
                                                       Text(
@@ -3538,6 +3568,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                                                         FontWeight
                                                                             .w600,
                                                                   ),
+                                                            ).animateOnActionTrigger(
+                                                              animationsMap['textOnActionTriggerAnimation']!,
                                                             ),
                                                           ),
                                                         ),
@@ -3648,6 +3680,8 @@ class _HomeWidgetState extends State<HomeWidget> with TickerProviderStateMixin, 
                                                                     FontWeight
                                                                         .w600,
                                                               ),
+                                                        ).animateOnActionTrigger(
+                                                          animationsMap['textOnActionTriggerAnimation']!,
                                                         ),
                                                       ),
                                                       Text(
