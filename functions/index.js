@@ -335,44 +335,29 @@ exports.api = functions.region('europe-west1').runWith(runtimeOpts).https.onRequ
 // Fetch rewards for a specific address
 async function getRewardsForAddress(address) {
   try {
-    const electedValidatorsResponse = await axios.post(HARMONY_RPC_URL, {
+    const response = await axios.post(HARMONY_RPC_URL, {
       jsonrpc: '2.0',
-      method: 'hmyv2_getAllValidatorAddresses',
-      params: [],
+      method: 'hmyv2_getDelegationsByDelegator',
+      params: [address],
       id: 1
     });
 
-    const electedValidatorAddresses = electedValidatorsResponse.data.result;
+    const delegations = response.data.result || [];
     let totalRewards = 0;
 
-    const validatorInfoPromises = electedValidatorAddresses.map(validatorAddress =>
-      axios.post(HARMONY_RPC_URL, {
-        jsonrpc: '2.0',
-        method: 'hmyv2_getValidatorInformation',
-        params: [validatorAddress],
-        id: 1
-      })
-    );
-
-    const validatorInfoResponses = await Promise.all(validatorInfoPromises);
-
-    validatorInfoResponses.forEach(response => {
-      const validatorInfo = response.data.result;
-      const delegations = validatorInfo.validator.delegations || [];
-      const addressDelegation = delegations.find(delegation => delegation['delegator-address'] === address);
-
-      if (addressDelegation) {
-        totalRewards += addressDelegation.reward;
-      }
+    // Sum up the rewards from all delegations
+    delegations.forEach(delegation => {
+      totalRewards += Number(delegation.reward); // Rewards are in AttoONE
     });
 
-    const rewardsInOne = totalRewards / 1e18;
+    const rewardsInOne = totalRewards / 1e18; // Convert AttoONE to ONE
     return rewardsInOne;
   } catch (error) {
     console.error('Error fetching rewards:', error);
     throw error;
   }
 }
+
 
 
 
@@ -448,6 +433,7 @@ function shortAddress(address) {
 }
 
 // Function to check rewards and notify users
+// Function to check rewards and notify users
 exports.checkRewardsAndNotify = functions
   .region('europe-west1')
   .runWith(runtimeOpts)
@@ -462,28 +448,34 @@ exports.checkRewardsAndNotify = functions
 
         for (const address in userAddresses) {
           const user = userAddresses[address];
-          const rewards = await getRewardsForAddress(address);
-          const TARGET_REWARD = user.rewardsTrigger;
+          try {
+            // Fetch rewards for the user's address
+            const rewards = await getRewardsForAddress(address);
+            const TARGET_REWARD = user.rewardsTrigger;
 
-          if (rewards >= TARGET_REWARD && !user.notificationSent) {
-            const payloadTitle = 'Rewards Milestone Reached!';
-            const payloadBody = `The rewards of the Wallet ${shortAddress(address)} have reached ${rewards.toFixed(2)} ONE tokens!`;
-            try {
+            // Notify the user if the rewards exceed the target
+            if (rewards >= TARGET_REWARD && !user.notificationSent) {
+              const payloadTitle = 'Rewards Milestone Reached!';
+              const payloadBody = `The rewards of the Wallet ${shortAddress(address)} have reached ${rewards.toFixed(2)} ONE tokens!`;
+
               const response = await sendNotification(user.fcmToken, payloadTitle, payloadBody);
               console.log(`Notification sent successfully to ${uid} for ${address}:`, response);
 
-              // Update the flag in the database to mark that the notification was sent
-              await admin.database().ref(`users/${uid}/${address}`).update({ notificationSent: true, rewardsTrigger: null });
-            } catch (notificationError) {
-              console.error(`Error sending notification to ${uid} for ${address}:`, notificationError);
+              // Update the database to prevent duplicate notifications
+              await admin.database().ref(`users/${uid}/${address}`).update({
+                notificationSent: true,
+                rewardsTrigger: null
+              });
+            } else {
+              console.log(`Current rewards (${rewards.toFixed(2)}) for ${uid}/${address} have not reached the target (${TARGET_REWARD.toFixed(2)}) yet.`);
             }
-          } else {
-            console.log(`Current rewards (${rewards.toFixed(2)}) for ${uid}/${address} have not reached the target (${TARGET_REWARD.toFixed(2)}) yet.`);
+          } catch (error) {
+            console.error(`Error processing rewards for ${uid}/${address}:`, error);
           }
         }
       }
     } catch (error) {
-      console.error('Error checking rewards and sending notification:', error);
+      console.error('Error checking rewards and sending notifications:', error);
     }
   });
 
